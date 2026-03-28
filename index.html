@@ -1,0 +1,2348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Brain — The Graph-First Social Network</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg-primary: #141414;
+      --bg-secondary: #1a1a2e;
+      --bg-card: #1c1c2e;
+      --bg-card-hover: #252540;
+      --bg-surface: #0f0f1a;
+      --accent: #E94560;
+      --accent-hover: #ff5a75;
+      --accent-dim: rgba(233, 69, 96, 0.15);
+      --text-primary: #e5e5e5;
+      --text-secondary: #a0a0b0;
+      --text-muted: #6b6b80;
+      --border: rgba(255,255,255,0.08);
+      --warmth-high: #00d4aa;
+      --warmth-med: #f0c040;
+      --warmth-low: #ff6b6b;
+      --blue: #4a9eff;
+      --purple: #a855f7;
+      --gradient: linear-gradient(135deg, #E94560, #a855f7);
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      overflow-x: hidden;
+      min-height: 100vh;
+    }
+
+    /* ============ NAVBAR ============ */
+    .navbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 68px;
+      background: linear-gradient(180deg, rgba(20,20,20,0.95) 0%, rgba(20,20,20,0.8) 100%);
+      backdrop-filter: blur(20px);
+      display: flex;
+      align-items: center;
+      padding: 0 48px;
+      z-index: 1000;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.3s;
+    }
+    .navbar.scrolled { background: rgba(20,20,20,0.98); }
+    .nav-logo {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: var(--gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      cursor: pointer;
+    }
+    .nav-links {
+      display: flex;
+      gap: 32px;
+      margin-left: 48px;
+      list-style: none;
+    }
+    .nav-links li {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: color 0.2s;
+      position: relative;
+    }
+    .nav-links li:hover, .nav-links li.active { color: var(--text-primary); }
+    .nav-links li.active::after {
+      content: '';
+      position: absolute;
+      bottom: -4px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--accent);
+      border-radius: 1px;
+    }
+    .nav-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    .nav-search {
+      position: relative;
+    }
+    .nav-search input {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid transparent;
+      border-radius: 24px;
+      padding: 8px 16px 8px 40px;
+      color: var(--text-primary);
+      font-size: 14px;
+      width: 280px;
+      transition: all 0.3s;
+      outline: none;
+    }
+    .nav-search input:focus {
+      background: rgba(255,255,255,0.12);
+      border-color: var(--accent);
+      width: 360px;
+    }
+    .nav-search input::placeholder { color: var(--text-muted); }
+    .nav-search i {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+    .nav-notif {
+      position: relative;
+      cursor: pointer;
+      color: var(--text-secondary);
+      font-size: 18px;
+      transition: color 0.2s;
+    }
+    .nav-notif:hover { color: var(--text-primary); }
+    .nav-notif .badge {
+      position: absolute;
+      top: -4px;
+      right: -6px;
+      width: 16px;
+      height: 16px;
+      background: var(--accent);
+      border-radius: 50%;
+      font-size: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+    }
+    .nav-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--gradient);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    .nav-avatar:hover { transform: scale(1.1); }
+
+    /* ============ PAGES ============ */
+    .page {
+      display: none;
+      padding-top: 68px;
+      min-height: 100vh;
+      animation: fadeIn 0.4s ease;
+    }
+    .page.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* ============ HOME PAGE ============ */
+    .hero {
+      position: relative;
+      height: 520px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 0 48px;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 30% 50%, rgba(233,69,96,0.12) 0%, transparent 60%),
+                  radial-gradient(ellipse at 70% 30%, rgba(168,85,247,0.08) 0%, transparent 50%);
+    }
+    .hero-content { position: relative; z-index: 1; max-width: 680px; }
+    .hero h1 {
+      font-size: 52px;
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -1.5px;
+      margin-bottom: 16px;
+    }
+    .hero h1 span {
+      background: var(--gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero p {
+      font-size: 18px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin-bottom: 32px;
+      max-width: 540px;
+    }
+    .hero-search {
+      position: relative;
+      max-width: 560px;
+    }
+    .hero-search input {
+      width: 100%;
+      padding: 18px 24px 18px 52px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      font-size: 16px;
+      color: var(--text-primary);
+      outline: none;
+      transition: all 0.3s;
+    }
+    .hero-search input:focus {
+      background: rgba(255,255,255,0.1);
+      border-color: var(--accent);
+      box-shadow: 0 0 30px rgba(233,69,96,0.15);
+    }
+    .hero-search input::placeholder { color: var(--text-muted); }
+    .hero-search > i {
+      position: absolute;
+      left: 20px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--accent);
+      font-size: 18px;
+    }
+    .hero-search .search-btn {
+      position: absolute;
+      right: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: var(--accent);
+      border: none;
+      border-radius: 12px;
+      padding: 12px 24px;
+      color: white;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .hero-search .search-btn:hover { background: var(--accent-hover); }
+    .hero-tags {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+    .hero-tags span {
+      padding: 6px 14px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .hero-tags span:hover {
+      background: var(--accent-dim);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* Network stats floating */
+    .hero-stats {
+      position: absolute;
+      right: 48px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      z-index: 1;
+    }
+    .stat-card {
+      background: rgba(28,28,46,0.8);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px 24px;
+      min-width: 220px;
+      transition: transform 0.3s, border-color 0.3s;
+    }
+    .stat-card:hover { transform: translateX(-4px); border-color: rgba(233,69,96,0.3); }
+    .stat-card .stat-value {
+      font-size: 28px;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+    .stat-card .stat-value.gradient {
+      background: var(--gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .stat-card .stat-label {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    /* Section containers */
+    .section {
+      padding: 40px 48px;
+    }
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    .section-header h2 {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+    .section-header .see-all {
+      font-size: 14px;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+    .section-header .see-all:hover { color: var(--accent); }
+
+    /* Horizontal scroll row (Netflix style) */
+    .card-row {
+      display: flex;
+      gap: 16px;
+      overflow-x: auto;
+      padding-bottom: 16px;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+    }
+    .card-row::-webkit-scrollbar { height: 4px; }
+    .card-row::-webkit-scrollbar-track { background: transparent; }
+    .card-row::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* Path Cards */
+    .path-card {
+      flex-shrink: 0;
+      width: 340px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      cursor: pointer;
+      transition: all 0.3s;
+      scroll-snap-align: start;
+      position: relative;
+      overflow: hidden;
+    }
+    .path-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--gradient);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .path-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(233,69,96,0.3);
+      box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+    }
+    .path-card:hover::before { opacity: 1; }
+    .path-card .path-target {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .path-card .path-target .avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .path-card .path-target .info h3 {
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .path-card .path-target .info p {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .path-chain {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 16px 0;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 10px;
+    }
+    .path-chain .node {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .path-chain .connector {
+      flex: 1;
+      height: 2px;
+      background: linear-gradient(90deg, var(--warmth-high), var(--accent));
+      position: relative;
+      min-width: 20px;
+    }
+    .path-chain .connector::after {
+      content: '';
+      position: absolute;
+      right: -3px;
+      top: -3px;
+      width: 8px;
+      height: 8px;
+      border-right: 2px solid var(--accent);
+      border-top: 2px solid var(--accent);
+      transform: rotate(45deg);
+    }
+    .warmth-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .warmth-badge.high { background: rgba(0,212,170,0.15); color: var(--warmth-high); }
+    .warmth-badge.med { background: rgba(240,192,64,0.15); color: var(--warmth-med); }
+    .warmth-badge.low { background: rgba(255,107,107,0.15); color: var(--warmth-low); }
+    .path-card .path-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 12px;
+    }
+    .path-card .shared-ctx {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .path-card .shared-ctx i { margin-right: 4px; color: var(--blue); }
+    .btn-intro {
+      padding: 8px 16px;
+      background: var(--accent);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-intro:hover { background: var(--accent-hover); transform: scale(1.05); }
+
+    /* Intent Signal Cards */
+    .intent-card {
+      flex-shrink: 0;
+      width: 300px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      cursor: pointer;
+      transition: all 0.3s;
+      scroll-snap-align: start;
+    }
+    .intent-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(168,85,247,0.3);
+    }
+    .intent-card .intent-type {
+      display: inline-flex;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+    }
+    .intent-type.raising { background: rgba(233,69,96,0.15); color: var(--accent); }
+    .intent-type.investing { background: rgba(0,212,170,0.15); color: var(--warmth-high); }
+    .intent-type.hiring { background: rgba(74,158,255,0.15); color: var(--blue); }
+    .intent-type.advisory { background: rgba(168,85,247,0.15); color: var(--purple); }
+    .intent-card .intent-user {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .intent-card .intent-user .avatar-sm {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .intent-card .intent-user .name { font-weight: 600; font-size: 15px; }
+    .intent-card .intent-user .role { font-size: 12px; color: var(--text-muted); }
+    .intent-card .intent-text {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      margin-bottom: 12px;
+    }
+    .intent-card .intent-hops {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .intent-card .intent-hops i { color: var(--warmth-high); margin-right: 4px; }
+
+    /* ============ DISCOVER PAGE (Path Results) ============ */
+    .discover-header {
+      padding: 32px 48px 0;
+    }
+    .discover-header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .discover-header h1 span { color: var(--accent); }
+    .discover-header p {
+      color: var(--text-muted);
+      font-size: 14px;
+      margin-bottom: 24px;
+    }
+    .discover-filters {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .filter-chip {
+      padding: 8px 16px;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+      background: transparent;
+    }
+    .filter-chip:hover, .filter-chip.active {
+      background: var(--accent-dim);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .path-results {
+      padding: 24px 48px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+      gap: 20px;
+    }
+    .path-result-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      transition: all 0.3s;
+      cursor: pointer;
+    }
+    .path-result-card:hover {
+      border-color: rgba(233,69,96,0.3);
+      box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+    }
+    .path-result-card .result-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 16px;
+    }
+    .result-profile {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+    }
+    .result-profile .avatar-lg {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 20px;
+    }
+    .result-profile h3 { font-size: 18px; font-weight: 600; }
+    .result-profile .title { font-size: 13px; color: var(--text-muted); }
+    .path-visual {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      margin: 16px 0;
+      padding: 16px;
+      background: rgba(255,255,255,0.02);
+      border-radius: 12px;
+    }
+    .path-visual .pv-node {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      min-width: 70px;
+    }
+    .path-visual .pv-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 14px;
+      border: 2px solid transparent;
+    }
+    .pv-node.you .pv-avatar { border-color: var(--accent); }
+    .pv-node.target .pv-avatar { border-color: var(--warmth-high); }
+    .path-visual .pv-name {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-align: center;
+      max-width: 80px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .path-visual .pv-edge {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      min-width: 50px;
+    }
+    .pv-edge .edge-line {
+      width: 100%;
+      height: 2px;
+      border-radius: 1px;
+    }
+    .pv-edge .edge-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .shared-context-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .ctx-tag {
+      padding: 4px 10px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 6px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .ctx-tag i { margin-right: 4px; font-size: 10px; }
+
+    /* ============ NETWORK MAP PAGE ============ */
+    .network-page {
+      display: flex;
+      height: calc(100vh - 68px);
+    }
+    .network-sidebar {
+      width: 320px;
+      background: var(--bg-surface);
+      border-right: 1px solid var(--border);
+      padding: 24px;
+      overflow-y: auto;
+    }
+    .network-sidebar h2 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 20px;
+    }
+    .cluster-list { display: flex; flex-direction: column; gap: 12px; }
+    .cluster-item {
+      padding: 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .cluster-item:hover { border-color: rgba(233,69,96,0.3); }
+    .cluster-item.active { border-color: var(--accent); background: var(--accent-dim); }
+    .cluster-item .cluster-name { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
+    .cluster-item .cluster-count { font-size: 13px; color: var(--text-muted); }
+    .cluster-item .cluster-dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+    .network-canvas {
+      flex: 1;
+      position: relative;
+      background: var(--bg-primary);
+    }
+    #networkCanvas {
+      width: 100%;
+      height: 100%;
+    }
+    .canvas-controls {
+      position: absolute;
+      bottom: 24px;
+      right: 24px;
+      display: flex;
+      gap: 8px;
+    }
+    .canvas-controls button {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-primary);
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    .canvas-controls button:hover { background: var(--bg-card-hover); border-color: var(--accent); }
+
+    /* ============ INTRO REQUEST MODAL ============ */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(4px);
+      z-index: 2000;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      width: 540px;
+      max-height: 85vh;
+      overflow-y: auto;
+      animation: modalIn 0.3s ease;
+    }
+    @keyframes modalIn { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+    .modal-header {
+      padding: 24px 28px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .modal-header h2 { font-size: 20px; font-weight: 700; }
+    .modal-close {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: none;
+      background: rgba(255,255,255,0.06);
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    .modal-close:hover { background: rgba(255,255,255,0.1); color: var(--text-primary); }
+    .modal-body { padding: 24px 28px; }
+    .modal-path-preview {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 20px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 12px;
+      margin-bottom: 24px;
+    }
+    .modal-path-preview .mp-node {
+      text-align: center;
+    }
+    .modal-path-preview .mp-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      margin: 0 auto 6px;
+    }
+    .modal-path-preview .mp-name {
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .modal-path-preview .mp-role {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .modal-path-preview .mp-arrow {
+      color: var(--accent);
+      font-size: 20px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text-primary);
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .form-group select:focus,
+    .form-group textarea:focus { border-color: var(--accent); }
+    .form-group textarea { resize: vertical; min-height: 80px; }
+    .form-group select option { background: var(--bg-secondary); }
+    .modal-footer {
+      padding: 0 28px 24px;
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+    }
+    .btn-secondary {
+      padding: 10px 20px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-secondary:hover { border-color: var(--text-secondary); color: var(--text-primary); }
+    .btn-primary {
+      padding: 10px 24px;
+      border-radius: 10px;
+      border: none;
+      background: var(--accent);
+      color: white;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary:hover { background: var(--accent-hover); }
+
+    /* ============ BRIDGE REVIEW MODAL ============ */
+    .bridge-card {
+      background: rgba(255,255,255,0.03);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .bridge-card .bridge-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .bridge-card .bridge-header .label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--accent);
+    }
+    .bridge-card .bridge-header .time {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .context-briefing {
+      background: rgba(0,212,170,0.08);
+      border: 1px solid rgba(0,212,170,0.2);
+      border-radius: 12px;
+      padding: 16px;
+      margin: 16px 0;
+    }
+    .context-briefing h4 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--warmth-high);
+      margin-bottom: 8px;
+    }
+    .context-briefing p {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    /* ============ PROFILE PAGE ============ */
+    .profile-hero {
+      position: relative;
+      padding: 48px 48px 32px;
+      background: linear-gradient(180deg, rgba(233,69,96,0.08) 0%, transparent 100%);
+    }
+    .profile-main {
+      display: flex;
+      gap: 24px;
+      align-items: flex-start;
+    }
+    .profile-avatar {
+      width: 96px;
+      height: 96px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 36px;
+      flex-shrink: 0;
+      border: 3px solid var(--accent);
+    }
+    .profile-info h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .profile-info .headline {
+      font-size: 16px;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+    }
+    .profile-badges {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .profile-badge {
+      padding: 5px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .profile-badge.connector { background: rgba(168,85,247,0.15); color: var(--purple); }
+    .profile-badge.investor { background: rgba(0,212,170,0.15); color: var(--warmth-high); }
+    .profile-badge.founder { background: rgba(233,69,96,0.15); color: var(--accent); }
+    .profile-scores {
+      display: flex;
+      gap: 24px;
+      margin-top: 24px;
+    }
+    .score-item {
+      text-align: center;
+      padding: 16px 24px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      min-width: 140px;
+    }
+    .score-item .score-val {
+      font-size: 32px;
+      font-weight: 800;
+    }
+    .score-item .score-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+    .profile-body {
+      padding: 0 48px 48px;
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      gap: 32px;
+      margin-top: 24px;
+    }
+    .profile-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    .profile-section h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .profile-section h3 i { color: var(--accent); font-size: 14px; }
+    .experience-item {
+      display: flex;
+      gap: 14px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .experience-item:last-child { border-bottom: none; }
+    .exp-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.06);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 16px;
+    }
+    .exp-details h4 { font-size: 14px; font-weight: 600; }
+    .exp-details p { font-size: 13px; color: var(--text-muted); }
+
+    /* ============ NOTIFICATIONS PANEL ============ */
+    .notif-panel {
+      position: fixed;
+      top: 68px;
+      right: 0;
+      width: 400px;
+      height: calc(100vh - 68px);
+      background: var(--bg-surface);
+      border-left: 1px solid var(--border);
+      z-index: 1500;
+      transform: translateX(100%);
+      transition: transform 0.3s ease;
+      overflow-y: auto;
+      padding: 24px;
+    }
+    .notif-panel.open { transform: translateX(0); }
+    .notif-panel h2 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 20px;
+    }
+    .notif-item {
+      display: flex;
+      gap: 14px;
+      padding: 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .notif-item:hover { border-color: rgba(233,69,96,0.3); }
+    .notif-item.unread { border-left: 3px solid var(--accent); }
+    .notif-item .notif-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 16px;
+    }
+    .notif-item .notif-text h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+    .notif-item .notif-text p { font-size: 13px; color: var(--text-muted); line-height: 1.4; }
+    .notif-item .notif-text .notif-time { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
+    .notif-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .notif-actions button {
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .notif-actions .approve {
+      background: var(--warmth-high);
+      border: none;
+      color: #000;
+    }
+    .notif-actions .decline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+
+    /* ============ SUCCESS TOAST ============ */
+    .toast {
+      position: fixed;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      padding: 16px 28px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--warmth-high);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 3000;
+      transition: transform 0.4s ease;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    .toast i { color: var(--warmth-high); font-size: 20px; }
+    .toast span { font-size: 14px; font-weight: 600; }
+
+    /* Avatar colors */
+    .av-1 { background: linear-gradient(135deg, #E94560, #c73650); }
+    .av-2 { background: linear-gradient(135deg, #4a9eff, #2d7ed9); }
+    .av-3 { background: linear-gradient(135deg, #a855f7, #8b3fd4); }
+    .av-4 { background: linear-gradient(135deg, #00d4aa, #00a888); }
+    .av-5 { background: linear-gradient(135deg, #f0c040, #d4a630); }
+    .av-6 { background: linear-gradient(135deg, #ff7eb3, #d4598e); }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .hero-stats { display: none; }
+      .profile-body { grid-template-columns: 1fr; }
+      .path-results { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav class="navbar" id="navbar">
+  <div class="nav-logo" onclick="showPage('home')">THE BRAIN</div>
+  <ul class="nav-links">
+    <li class="active" onclick="showPage('home')" data-page="home">Home</li>
+    <li onclick="showPage('discover')" data-page="discover">Discover</li>
+    <li onclick="showPage('network')" data-page="network">Network Map</li>
+    <li onclick="showPage('profile')" data-page="profile">Profile</li>
+  </ul>
+  <div class="nav-right">
+    <div class="nav-search">
+      <i class="fas fa-search"></i>
+      <input type="text" placeholder="Search people, companies, roles..." id="navSearchInput" onkeydown="if(event.key==='Enter'){showPage('discover'); document.getElementById('discoverQuery').textContent=this.value||'Partner at Sequoia India'}">
+    </div>
+    <div class="nav-notif" onclick="toggleNotifications()">
+      <i class="fas fa-bell"></i>
+      <div class="badge">3</div>
+    </div>
+    <div class="nav-avatar av-1" onclick="showPage('profile')">G</div>
+  </div>
+</nav>
+
+<!-- NOTIFICATIONS PANEL -->
+<div class="notif-panel" id="notifPanel">
+  <h2>Notifications</h2>
+
+  <div class="notif-item unread" onclick="openBridgeReview()">
+    <div class="notif-icon av-2"><i class="fas fa-handshake"></i></div>
+    <div class="notif-text">
+      <h4>Intro Request from Ananya Sharma</h4>
+      <p>Wants an intro to Rajesh Gupta (Sequoia India) for Series A fundraising.</p>
+      <div class="notif-time">2 min ago</div>
+      <div class="notif-actions">
+        <button class="approve" onclick="event.stopPropagation(); approveIntro()">Approve</button>
+        <button class="decline" onclick="event.stopPropagation()">Decline</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="notif-item unread">
+    <div class="notif-icon av-4"><i class="fas fa-star"></i></div>
+    <div class="notif-text">
+      <h4>Bridge Score increased!</h4>
+      <p>Your Bridge Score is now 87. You facilitated 3 successful intros this week.</p>
+      <div class="notif-time">1 hour ago</div>
+    </div>
+  </div>
+
+  <div class="notif-item unread">
+    <div class="notif-icon av-3"><i class="fas fa-route"></i></div>
+    <div class="notif-text">
+      <h4>New path discovered</h4>
+      <p>You're now 2 hops from Kunal Shah (CRED). Via Meera from your Flipkart network.</p>
+      <div class="notif-time">3 hours ago</div>
+    </div>
+  </div>
+
+  <div class="notif-item">
+    <div class="notif-icon av-5"><i class="fas fa-check-circle"></i></div>
+    <div class="notif-text">
+      <h4>Intro completed successfully</h4>
+      <p>Vikram rated your intro to Priya as "very helpful". +5 Bridge Score.</p>
+      <div class="notif-time">Yesterday</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ HOME PAGE ============ -->
+<div class="page active" id="page-home">
+  <div class="hero">
+    <div class="hero-content">
+      <h1>Every warm intro,<br><span>one tap away.</span></h1>
+      <p>Discover the shortest, warmest path to anyone in your extended network. Stop cold-emailing. Start navigating.</p>
+      <div class="hero-search">
+        <i class="fas fa-search"></i>
+        <input type="text" placeholder="Search by person, role, or company..." id="heroSearch" onkeydown="if(event.key==='Enter'){showPage('discover'); document.getElementById('discoverQuery').textContent=this.value||'Partner at Sequoia India'}">
+        <button class="search-btn" onclick="showPage('discover')">Find Paths</button>
+      </div>
+      <div class="hero-tags">
+        <span onclick="showPage('discover')">Seed-stage VC</span>
+        <span onclick="showPage('discover')">Fintech Founders</span>
+        <span onclick="showPage('discover')">YC Alumni</span>
+        <span onclick="showPage('discover')">Backend Engineers</span>
+        <span onclick="showPage('discover')">Sequoia India</span>
+      </div>
+    </div>
+    <div class="hero-stats">
+      <div class="stat-card">
+        <div class="stat-value gradient">2,847</div>
+        <div class="stat-label">People in your network</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value gradient">14,290</div>
+        <div class="stat-label">Reachable within 3 hops</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value gradient">87</div>
+        <div class="stat-label">Your Bridge Score</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Suggested Paths -->
+  <div class="section">
+    <div class="section-header">
+      <h2>Suggested Paths for You</h2>
+      <span class="see-all" onclick="showPage('discover')">See all →</span>
+    </div>
+    <div class="card-row">
+      <div class="path-card" onclick="openIntroModal('Rajesh Gupta', 'Partner, Sequoia India', 'RG', 'av-4', 'Vikram Patel', 'VP', 'IIT-B 2014, Co-worked at Flipkart')">
+        <div class="path-target">
+          <div class="avatar av-4">RG</div>
+          <div class="info">
+            <h3>Rajesh Gupta</h3>
+            <p>Partner, Sequoia India</p>
+          </div>
+        </div>
+        <div class="path-chain">
+          <div class="node av-1">G</div>
+          <div class="connector" style="background: linear-gradient(90deg, var(--warmth-high), var(--warmth-high))"></div>
+          <div class="node av-2">VP</div>
+          <div class="connector"></div>
+          <div class="node av-4">RG</div>
+        </div>
+        <div class="path-meta">
+          <div class="shared-ctx"><i class="fas fa-link"></i> IIT-B '14, Flipkart Alumni</div>
+          <span class="warmth-badge high"><i class="fas fa-fire"></i> 92</span>
+        </div>
+      </div>
+
+      <div class="path-card" onclick="openIntroModal('Priya Nair', 'Founder & CEO, FinStack', 'PN', 'av-6', 'Amit Shah', 'AS', 'YC W24 Batchmates')">
+        <div class="path-target">
+          <div class="avatar av-6">PN</div>
+          <div class="info">
+            <h3>Priya Nair</h3>
+            <p>Founder & CEO, FinStack</p>
+          </div>
+        </div>
+        <div class="path-chain">
+          <div class="node av-1">G</div>
+          <div class="connector" style="background: linear-gradient(90deg, var(--warmth-med), var(--warmth-high))"></div>
+          <div class="node av-3">AS</div>
+          <div class="connector" style="background: linear-gradient(90deg, var(--warmth-high), var(--warmth-high))"></div>
+          <div class="node av-6">PN</div>
+        </div>
+        <div class="path-meta">
+          <div class="shared-ctx"><i class="fas fa-link"></i> YC W24 Batch</div>
+          <span class="warmth-badge high"><i class="fas fa-fire"></i> 85</span>
+        </div>
+      </div>
+
+      <div class="path-card">
+        <div class="path-target">
+          <div class="avatar av-2">KS</div>
+          <div class="info">
+            <h3>Kunal Shah</h3>
+            <p>Founder, CRED</p>
+          </div>
+        </div>
+        <div class="path-chain">
+          <div class="node av-1">G</div>
+          <div class="connector" style="background: var(--warmth-high)"></div>
+          <div class="node av-5">MK</div>
+          <div class="connector" style="background: var(--warmth-med)"></div>
+          <div class="node av-3">DP</div>
+          <div class="connector" style="background: var(--warmth-high)"></div>
+          <div class="node av-2">KS</div>
+        </div>
+        <div class="path-meta">
+          <div class="shared-ctx"><i class="fas fa-link"></i> 3 hops via Flipkart</div>
+          <span class="warmth-badge med"><i class="fas fa-fire"></i> 68</span>
+        </div>
+      </div>
+
+      <div class="path-card">
+        <div class="path-target">
+          <div class="avatar av-5">NS</div>
+          <div class="info">
+            <h3>Nithin Kamath</h3>
+            <p>Founder, Zerodha</p>
+          </div>
+        </div>
+        <div class="path-chain">
+          <div class="node av-1">G</div>
+          <div class="connector" style="background: var(--warmth-high)"></div>
+          <div class="node av-4">RD</div>
+          <div class="connector" style="background: var(--warmth-med)"></div>
+          <div class="node av-5">NS</div>
+        </div>
+        <div class="path-meta">
+          <div class="shared-ctx"><i class="fas fa-link"></i> Fintech Network</div>
+          <span class="warmth-badge med"><i class="fas fa-fire"></i> 72</span>
+        </div>
+      </div>
+
+      <div class="path-card">
+        <div class="path-target">
+          <div class="avatar av-3">AK</div>
+          <div class="info">
+            <h3>Ankit Agarwal</h3>
+            <p>VP Engineering, Razorpay</p>
+          </div>
+        </div>
+        <div class="path-chain">
+          <div class="node av-1">G</div>
+          <div class="connector" style="background: var(--warmth-high)"></div>
+          <div class="node av-6">SM</div>
+          <div class="connector" style="background: var(--warmth-high)"></div>
+          <div class="node av-3">AK</div>
+        </div>
+        <div class="path-meta">
+          <div class="shared-ctx"><i class="fas fa-link"></i> IIT-B Alumni</div>
+          <span class="warmth-badge high"><i class="fas fa-fire"></i> 88</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Intent Signals -->
+  <div class="section">
+    <div class="section-header">
+      <h2>Active Signals in Your Network</h2>
+      <span class="see-all">See all →</span>
+    </div>
+    <div class="card-row">
+      <div class="intent-card">
+        <div class="intent-type raising">Raising Capital</div>
+        <div class="intent-user">
+          <div class="avatar-sm av-6">PN</div>
+          <div>
+            <div class="name">Priya Nair</div>
+            <div class="role">Founder & CEO, FinStack</div>
+          </div>
+        </div>
+        <div class="intent-text">Raising Series A — open to intros to growth-stage VCs focused on fintech infrastructure</div>
+        <div class="intent-hops"><i class="fas fa-route"></i> 2 hops away via Amit Shah</div>
+      </div>
+
+      <div class="intent-card">
+        <div class="intent-type investing">Actively Investing</div>
+        <div class="intent-user">
+          <div class="avatar-sm av-4">RG</div>
+          <div>
+            <div class="name">Rajesh Gupta</div>
+            <div class="role">Partner, Sequoia India</div>
+          </div>
+        </div>
+        <div class="intent-text">Actively investing in seed-stage fintech and developer tools startups in India</div>
+        <div class="intent-hops"><i class="fas fa-route"></i> 2 hops away via Vikram Patel</div>
+      </div>
+
+      <div class="intent-card">
+        <div class="intent-type hiring">Hiring</div>
+        <div class="intent-user">
+          <div class="avatar-sm av-3">AK</div>
+          <div>
+            <div class="name">Ankit Agarwal</div>
+            <div class="role">VP Engineering, Razorpay</div>
+          </div>
+        </div>
+        <div class="intent-text">Hiring senior backend engineers (Go/Rust) — open to referrals from trusted network</div>
+        <div class="intent-hops"><i class="fas fa-route"></i> 2 hops away via Sanya Mehta</div>
+      </div>
+
+      <div class="intent-card">
+        <div class="intent-type advisory">Advisory</div>
+        <div class="intent-user">
+          <div class="avatar-sm av-5">MK</div>
+          <div>
+            <div class="name">Meera Kapoor</div>
+            <div class="role">Ex-CPO, Flipkart</div>
+          </div>
+        </div>
+        <div class="intent-text">Open to advisory roles in edtech and healthtech companies at Series A+</div>
+        <div class="intent-hops"><i class="fas fa-route"></i> 1 hop — direct connection</div>
+      </div>
+
+      <div class="intent-card">
+        <div class="intent-type raising">Co-founder Search</div>
+        <div class="intent-user">
+          <div class="avatar-sm av-2">DV</div>
+          <div>
+            <div class="name">Dhruv Verma</div>
+            <div class="role">Ex-Staff Engineer, Google</div>
+          </div>
+        </div>
+        <div class="intent-text">Looking for a technical co-founder in AI/ML for a healthcare startup idea</div>
+        <div class="intent-hops"><i class="fas fa-route"></i> 2 hops away via Rahul Das</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top Bridges -->
+  <div class="section">
+    <div class="section-header">
+      <h2>Top Bridges in Your Network</h2>
+      <span class="see-all">See all →</span>
+    </div>
+    <div class="card-row">
+      <div class="path-card" style="width: 260px;">
+        <div class="path-target">
+          <div class="avatar av-2" style="width:44px;height:44px;font-size:16px;">VP</div>
+          <div class="info">
+            <h3>Vikram Patel</h3>
+            <p>Angel Investor</p>
+          </div>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-top:12px;">
+          <div style="text-align:center;">
+            <div style="font-size:24px; font-weight:800; color:var(--purple);">94</div>
+            <div style="font-size:11px; color:var(--text-muted);">Bridge Score</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:24px; font-weight:800; color:var(--warmth-high);">47</div>
+            <div style="font-size:11px; color:var(--text-muted);">Intros Made</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:24px; font-weight:800; color:var(--blue);">89%</div>
+            <div style="font-size:11px; color:var(--text-muted);">Success Rate</div>
+          </div>
+        </div>
+        <div style="margin-top:12px; font-size:12px; color:var(--text-muted);">
+          <i class="fas fa-project-diagram" style="color:var(--purple);"></i> Bridges 5 clusters: VC, Fintech, IIT-B, Flipkart, YC
+        </div>
+      </div>
+
+      <div class="path-card" style="width: 260px;">
+        <div class="path-target">
+          <div class="avatar av-5" style="width:44px;height:44px;font-size:16px;">MK</div>
+          <div class="info">
+            <h3>Meera Kapoor</h3>
+            <p>Ex-CPO, Flipkart</p>
+          </div>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-top:12px;">
+          <div style="text-align:center;">
+            <div style="font-size:24px; font-weight:800; color:var(--purple);">91</div>
+            <div style="font-size:11px; color:var(--text-muted);">Bridge Score</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:24px; font-weight:800; color:var(--warmth-high);">38</div>
+            <div style="font-size:11px; color:var(--text-muted);">Intros Made</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:24px; font-weight:800; color:var(--blue);">92%</div>
+            <div style="font-size:11px; color:var(--text-muted);">Success Rate</div>
+          </div>
+        </div>
+        <div style="margin-top:12px; font-size:12px; color:var(--text-muted);">
+          <i class="fas fa-project-diagram" style="color:var(--purple);"></i> Bridges 4 clusters: Product, Edtech, Flipkart, Angels
+        </div>
+      </div>
+
+      <div class="path-card" style="width: 260px;">
+        <div class="path-target">
+          <div class="avatar av-3" style="width:44px;height:44px;font-size:16px;">AS</div>
+          <div class="info">
+            <h3>Amit Shah</h3>
+            <p>GP, Accel India</p>
+          </div>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-top:12px;">
+          <div style="text-align:center;">
+            <div style="font-size:24px; font-weight:800; color:var(--purple);">88</div>
+            <div style="font-size:11px; color:var(--text-muted);">Bridge Score</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:24px; font-weight:800; color:var(--warmth-high);">52</div>
+            <div style="font-size:11px; color:var(--text-muted);">Intros Made</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:24px; font-weight:800; color:var(--blue);">85%</div>
+            <div style="font-size:11px; color:var(--text-muted);">Success Rate</div>
+          </div>
+        </div>
+        <div style="margin-top:12px; font-size:12px; color:var(--text-muted);">
+          <i class="fas fa-project-diagram" style="color:var(--purple);"></i> Bridges 6 clusters: VC, SaaS, YC, Founders, B2B, Infra
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ DISCOVER / PATH RESULTS PAGE ============ -->
+<div class="page" id="page-discover">
+  <div class="discover-header">
+    <h1>Paths to <span id="discoverQuery">Partner at Sequoia India</span></h1>
+    <p>Found 6 warm paths within 3 degrees of separation</p>
+    <div class="discover-filters">
+      <button class="filter-chip active">All Paths</button>
+      <button class="filter-chip">2nd Degree</button>
+      <button class="filter-chip">3rd Degree</button>
+      <button class="filter-chip">Highest Warmth</button>
+      <button class="filter-chip">Same College</button>
+      <button class="filter-chip">Co-workers</button>
+    </div>
+  </div>
+
+  <div class="path-results">
+    <!-- Result 1 -->
+    <div class="path-result-card" onclick="openIntroModal('Rajesh Gupta', 'Partner, Sequoia India', 'RG', 'av-4', 'Vikram Patel', 'VP', 'IIT-B 2014, Flipkart Alumni')">
+      <div class="result-header">
+        <div class="result-profile">
+          <div class="avatar-lg av-4">RG</div>
+          <div>
+            <h3>Rajesh Gupta</h3>
+            <div class="title">Partner, Sequoia India · Seed & Series A</div>
+          </div>
+        </div>
+        <span class="warmth-badge high"><i class="fas fa-fire"></i> Warmth 92</span>
+      </div>
+      <div class="path-visual">
+        <div class="pv-node you">
+          <div class="pv-avatar av-1">G</div>
+          <div class="pv-name">You</div>
+        </div>
+        <div class="pv-edge">
+          <div class="edge-line" style="background: var(--warmth-high);"></div>
+          <div class="edge-label">IIT-B '14</div>
+        </div>
+        <div class="pv-node">
+          <div class="pv-avatar av-2">VP</div>
+          <div class="pv-name">Vikram Patel</div>
+        </div>
+        <div class="pv-edge">
+          <div class="edge-line" style="background: var(--warmth-high);"></div>
+          <div class="edge-label">Co-invested</div>
+        </div>
+        <div class="pv-node target">
+          <div class="pv-avatar av-4">RG</div>
+          <div class="pv-name">Rajesh Gupta</div>
+        </div>
+      </div>
+      <div class="shared-context-list">
+        <span class="ctx-tag"><i class="fas fa-graduation-cap"></i> IIT Bombay '14</span>
+        <span class="ctx-tag"><i class="fas fa-building"></i> Flipkart Alumni</span>
+        <span class="ctx-tag"><i class="fas fa-coins"></i> 3 co-investments</span>
+        <span class="ctx-tag"><i class="fas fa-users"></i> 12 mutual connections</span>
+      </div>
+      <div style="margin-top:16px; display:flex; justify-content:flex-end;">
+        <button class="btn-intro" onclick="event.stopPropagation(); openIntroModal('Rajesh Gupta', 'Partner, Sequoia India', 'RG', 'av-4', 'Vikram Patel', 'VP', 'IIT-B 2014, Flipkart Alumni')"><i class="fas fa-handshake" style="margin-right:6px;"></i> Request Intro</button>
+      </div>
+    </div>
+
+    <!-- Result 2 -->
+    <div class="path-result-card">
+      <div class="result-header">
+        <div class="result-profile">
+          <div class="avatar-lg av-3">SP</div>
+          <div>
+            <h3>Shailesh Patil</h3>
+            <div class="title">MD, Sequoia India · Growth Stage</div>
+          </div>
+        </div>
+        <span class="warmth-badge med"><i class="fas fa-fire"></i> Warmth 71</span>
+      </div>
+      <div class="path-visual">
+        <div class="pv-node you">
+          <div class="pv-avatar av-1">G</div>
+          <div class="pv-name">You</div>
+        </div>
+        <div class="pv-edge">
+          <div class="edge-line" style="background: var(--warmth-high);"></div>
+          <div class="edge-label">Phone contact</div>
+        </div>
+        <div class="pv-node">
+          <div class="pv-avatar av-5">MK</div>
+          <div class="pv-name">Meera Kapoor</div>
+        </div>
+        <div class="pv-edge">
+          <div class="edge-line" style="background: var(--warmth-med);"></div>
+          <div class="edge-label">Same firm</div>
+        </div>
+        <div class="pv-node">
+          <div class="pv-avatar av-6">AR</div>
+          <div class="pv-name">Aditi Rao</div>
+        </div>
+        <div class="pv-edge">
+          <div class="edge-line" style="background: var(--warmth-high);"></div>
+          <div class="edge-label">Co-founded</div>
+        </div>
+        <div class="pv-node target">
+          <div class="pv-avatar av-3">SP</div>
+          <div class="pv-name">Shailesh Patil</div>
+        </div>
+      </div>
+      <div class="shared-context-list">
+        <span class="ctx-tag"><i class="fas fa-rocket"></i> Co-founded startup</span>
+        <span class="ctx-tag"><i class="fas fa-users"></i> 7 mutual connections</span>
+      </div>
+      <div style="margin-top:16px; display:flex; justify-content:flex-end;">
+        <button class="btn-intro"><i class="fas fa-handshake" style="margin-right:6px;"></i> Request Intro</button>
+      </div>
+    </div>
+
+    <!-- Result 3 -->
+    <div class="path-result-card">
+      <div class="result-header">
+        <div class="result-profile">
+          <div class="avatar-lg av-2">AJ</div>
+          <div>
+            <h3>Abhinav Jain</h3>
+            <div class="title">Principal, Sequoia India · Fintech</div>
+          </div>
+        </div>
+        <span class="warmth-badge high"><i class="fas fa-fire"></i> Warmth 84</span>
+      </div>
+      <div class="path-visual">
+        <div class="pv-node you">
+          <div class="pv-avatar av-1">G</div>
+          <div class="pv-name">You</div>
+        </div>
+        <div class="pv-edge">
+          <div class="edge-line" style="background: var(--warmth-high);"></div>
+          <div class="edge-label">Co-worked</div>
+        </div>
+        <div class="pv-node target">
+          <div class="pv-avatar av-2">AJ</div>
+          <div class="pv-name">Abhinav Jain</div>
+        </div>
+      </div>
+      <div class="shared-context-list">
+        <span class="ctx-tag"><i class="fas fa-building"></i> Flipkart 2015-2017</span>
+        <span class="ctx-tag"><i class="fas fa-graduation-cap"></i> IIT-B</span>
+        <span class="ctx-tag"><i class="fas fa-phone"></i> Phone contact</span>
+      </div>
+      <div style="margin-top:16px; display:flex; justify-content:flex-end;">
+        <button class="btn-intro" style="background:var(--warmth-high);"><i class="fas fa-paper-plane" style="margin-right:6px;"></i> Direct Message</button>
+      </div>
+    </div>
+
+    <!-- Result 4 -->
+    <div class="path-result-card">
+      <div class="result-header">
+        <div class="result-profile">
+          <div class="avatar-lg av-5">NK</div>
+          <div>
+            <h3>Neha Kumar</h3>
+            <div class="title">VP, Sequoia India · Operations</div>
+          </div>
+        </div>
+        <span class="warmth-badge med"><i class="fas fa-fire"></i> Warmth 63</span>
+      </div>
+      <div class="path-visual">
+        <div class="pv-node you">
+          <div class="pv-avatar av-1">G</div>
+          <div class="pv-name">You</div>
+        </div>
+        <div class="pv-edge">
+          <div class="edge-line" style="background: var(--warmth-med);"></div>
+          <div class="edge-label">LinkedIn</div>
+        </div>
+        <div class="pv-node">
+          <div class="pv-avatar av-3">RS</div>
+          <div class="pv-name">Rohit Singh</div>
+        </div>
+        <div class="pv-edge">
+          <div class="edge-line" style="background: var(--warmth-high);"></div>
+          <div class="edge-label">College friends</div>
+        </div>
+        <div class="pv-node target">
+          <div class="pv-avatar av-5">NK</div>
+          <div class="pv-name">Neha Kumar</div>
+        </div>
+      </div>
+      <div class="shared-context-list">
+        <span class="ctx-tag"><i class="fas fa-graduation-cap"></i> ISB '18</span>
+        <span class="ctx-tag"><i class="fas fa-users"></i> 4 mutual connections</span>
+      </div>
+      <div style="margin-top:16px; display:flex; justify-content:flex-end;">
+        <button class="btn-intro"><i class="fas fa-handshake" style="margin-right:6px;"></i> Request Intro</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ NETWORK MAP PAGE ============ -->
+<div class="page" id="page-network">
+  <div class="network-page">
+    <div class="network-sidebar">
+      <h2>Your Clusters</h2>
+      <div class="cluster-list">
+        <div class="cluster-item active">
+          <div class="cluster-name"><span class="cluster-dot" style="background:#E94560;"></span>IIT Bombay</div>
+          <div class="cluster-count">142 connections · 8 bridges</div>
+        </div>
+        <div class="cluster-item">
+          <div class="cluster-name"><span class="cluster-dot" style="background:#4a9eff;"></span>Flipkart Alumni</div>
+          <div class="cluster-count">98 connections · 5 bridges</div>
+        </div>
+        <div class="cluster-item">
+          <div class="cluster-name"><span class="cluster-dot" style="background:#a855f7;"></span>VC Network</div>
+          <div class="cluster-count">67 connections · 12 bridges</div>
+        </div>
+        <div class="cluster-item">
+          <div class="cluster-name"><span class="cluster-dot" style="background:#00d4aa;"></span>YC W24 Batch</div>
+          <div class="cluster-count">34 connections · 3 bridges</div>
+        </div>
+        <div class="cluster-item">
+          <div class="cluster-name"><span class="cluster-dot" style="background:#f0c040;"></span>Fintech Founders</div>
+          <div class="cluster-count">56 connections · 6 bridges</div>
+        </div>
+        <div class="cluster-item">
+          <div class="cluster-name"><span class="cluster-dot" style="background:#ff7eb3;"></span>Bangalore Tech</div>
+          <div class="cluster-count">189 connections · 9 bridges</div>
+        </div>
+      </div>
+
+      <h2 style="margin-top:32px;">Key Bridges</h2>
+      <div class="cluster-list">
+        <div class="cluster-item">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div class="avatar-sm av-2" style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;">VP</div>
+            <div>
+              <div class="cluster-name" style="font-size:14px;">Vikram Patel</div>
+              <div class="cluster-count">Connects IIT-B ↔ VC Network</div>
+            </div>
+          </div>
+        </div>
+        <div class="cluster-item">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div class="avatar-sm av-5" style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;">MK</div>
+            <div>
+              <div class="cluster-name" style="font-size:14px;">Meera Kapoor</div>
+              <div class="cluster-count">Connects Flipkart ↔ Fintech</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="network-canvas">
+      <canvas id="networkCanvas"></canvas>
+      <div class="canvas-controls">
+        <button onclick="zoomNetwork(1.2)" title="Zoom in"><i class="fas fa-plus"></i></button>
+        <button onclick="zoomNetwork(0.8)" title="Zoom out"><i class="fas fa-minus"></i></button>
+        <button onclick="resetNetwork()" title="Reset"><i class="fas fa-expand"></i></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PROFILE PAGE ============ -->
+<div class="page" id="page-profile">
+  <div class="profile-hero">
+    <div class="profile-main">
+      <div class="profile-avatar av-1">G</div>
+      <div class="profile-info">
+        <h1>Garvit Anand</h1>
+        <div class="headline">Founder & CEO · Building the future of professional networking</div>
+        <div class="profile-badges">
+          <span class="profile-badge founder"><i class="fas fa-rocket"></i> Founder</span>
+          <span class="profile-badge connector"><i class="fas fa-project-diagram"></i> Super Connector</span>
+          <span class="profile-badge investor"><i class="fas fa-seedling"></i> Angel Investor</span>
+        </div>
+      </div>
+    </div>
+    <div class="profile-scores">
+      <div class="score-item">
+        <div class="score-val" style="background:var(--gradient);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">87</div>
+        <div class="score-label">Bridge Score</div>
+      </div>
+      <div class="score-item">
+        <div class="score-val" style="color:var(--warmth-high);">2,847</div>
+        <div class="score-label">Connections</div>
+      </div>
+      <div class="score-item">
+        <div class="score-val" style="color:var(--blue);">23</div>
+        <div class="score-label">Intros Made</div>
+      </div>
+      <div class="score-item">
+        <div class="score-val" style="color:var(--warmth-med);">91%</div>
+        <div class="score-label">Success Rate</div>
+      </div>
+      <div class="score-item">
+        <div class="score-val" style="color:var(--purple);">6</div>
+        <div class="score-label">Clusters</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="profile-body">
+    <div>
+      <div class="profile-section">
+        <h3><i class="fas fa-briefcase"></i> Experience</h3>
+        <div class="experience-item">
+          <div class="exp-icon">🚀</div>
+          <div class="exp-details">
+            <h4>Founder & CEO — The Brain</h4>
+            <p>2025 – Present · Building the graph-first social network</p>
+          </div>
+        </div>
+        <div class="experience-item">
+          <div class="exp-icon">💼</div>
+          <div class="exp-details">
+            <h4>Product Lead — Flipkart</h4>
+            <p>2019 – 2025 · Led marketplace products, 3x GMV growth</p>
+          </div>
+        </div>
+        <div class="experience-item">
+          <div class="exp-icon">🎓</div>
+          <div class="exp-details">
+            <h4>IIT Bombay — B.Tech CS</h4>
+            <p>2014 – 2018</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="profile-section">
+        <h3><i class="fas fa-broadcast-tower"></i> Active Intents</h3>
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          <div style="padding:14px 18px; background:var(--accent-dim); border:1px solid rgba(233,69,96,0.2); border-radius:10px;">
+            <div style="font-size:11px; font-weight:600; text-transform:uppercase; color:var(--accent); margin-bottom:6px;">Raising Capital</div>
+            <div style="font-size:14px;">Raising seed round — open to intros to early-stage VCs focused on social + graph tech</div>
+            <div style="font-size:12px; color:var(--text-muted); margin-top:6px;">Visible to: 2nd degree connections</div>
+          </div>
+          <div style="padding:14px 18px; background:rgba(74,158,255,0.08); border:1px solid rgba(74,158,255,0.2); border-radius:10px;">
+            <div style="font-size:11px; font-weight:600; text-transform:uppercase; color:var(--blue); margin-bottom:6px;">Hiring</div>
+            <div style="font-size:14px;">Hiring founding engineers (full-stack, graph databases) — open to referrals</div>
+            <div style="font-size:12px; color:var(--text-muted); margin-top:6px;">Visible to: 3rd degree connections</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="profile-section">
+        <h3><i class="fas fa-chart-line"></i> Network Analytics</h3>
+        <div style="display:flex; flex-direction:column; gap:16px;">
+          <div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+              <span style="font-size:13px; color:var(--text-secondary);">IIT Bombay</span>
+              <span style="font-size:13px; font-weight:600; color:var(--accent);">142</span>
+            </div>
+            <div style="height:6px; background:rgba(255,255,255,0.06); border-radius:3px; overflow:hidden;">
+              <div style="height:100%; width:85%; background:var(--accent); border-radius:3px;"></div>
+            </div>
+          </div>
+          <div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+              <span style="font-size:13px; color:var(--text-secondary);">Bangalore Tech</span>
+              <span style="font-size:13px; font-weight:600; color:var(--blue);">189</span>
+            </div>
+            <div style="height:6px; background:rgba(255,255,255,0.06); border-radius:3px; overflow:hidden;">
+              <div style="height:100%; width:100%; background:var(--blue); border-radius:3px;"></div>
+            </div>
+          </div>
+          <div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+              <span style="font-size:13px; color:var(--text-secondary);">Flipkart Alumni</span>
+              <span style="font-size:13px; font-weight:600; color:var(--purple);">98</span>
+            </div>
+            <div style="height:6px; background:rgba(255,255,255,0.06); border-radius:3px; overflow:hidden;">
+              <div style="height:100%; width:62%; background:var(--purple); border-radius:3px;"></div>
+            </div>
+          </div>
+          <div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+              <span style="font-size:13px; color:var(--text-secondary);">VC Network</span>
+              <span style="font-size:13px; font-weight:600; color:var(--warmth-high);">67</span>
+            </div>
+            <div style="height:6px; background:rgba(255,255,255,0.06); border-radius:3px; overflow:hidden;">
+              <div style="height:100%; width:42%; background:var(--warmth-high); border-radius:3px;"></div>
+            </div>
+          </div>
+          <div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+              <span style="font-size:13px; color:var(--text-secondary);">Fintech Founders</span>
+              <span style="font-size:13px; font-weight:600; color:var(--warmth-med);">56</span>
+            </div>
+            <div style="height:6px; background:rgba(255,255,255,0.06); border-radius:3px; overflow:hidden;">
+              <div style="height:100%; width:35%; background:var(--warmth-med); border-radius:3px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="profile-section">
+        <h3><i class="fas fa-shield-alt"></i> Bridge Availability</h3>
+        <div style="display:flex; flex-direction:column; gap:14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:14px;">Intro requests per week</span>
+            <span style="font-size:14px; font-weight:600; color:var(--accent);">5 / week</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:14px;">Accept intros for</span>
+            <span style="font-size:14px; font-weight:600; color:var(--warmth-high);">Hiring, Fundraising</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:14px;">Min warmth to request</span>
+            <span style="font-size:14px; font-weight:600; color:var(--warmth-med);">60+</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:14px;">Status</span>
+            <span style="font-size:14px; font-weight:600; color:var(--warmth-high);">Active</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ INTRO REQUEST MODAL ============ -->
+<div class="modal-overlay" id="introModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Request Introduction</h2>
+      <button class="modal-close" onclick="closeIntroModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-path-preview">
+        <div class="mp-node">
+          <div class="mp-avatar av-1">G</div>
+          <div class="mp-name">You</div>
+          <div class="mp-role">Founder</div>
+        </div>
+        <div class="mp-arrow"><i class="fas fa-arrow-right"></i></div>
+        <div class="mp-node">
+          <div class="mp-avatar av-2" id="modalBridgeAvatar">VP</div>
+          <div class="mp-name" id="modalBridgeName">Vikram Patel</div>
+          <div class="mp-role">Bridge</div>
+        </div>
+        <div class="mp-arrow"><i class="fas fa-arrow-right"></i></div>
+        <div class="mp-node">
+          <div class="mp-avatar av-4" id="modalTargetAvatar">RG</div>
+          <div class="mp-name" id="modalTargetName">Rajesh Gupta</div>
+          <div class="mp-role" id="modalTargetRole">Sequoia India</div>
+        </div>
+      </div>
+
+      <div class="context-briefing">
+        <h4><i class="fas fa-magic"></i> Auto-Generated Context</h4>
+        <p id="modalContext">You and Vikram both studied at IIT Bombay (Class of 2014) and worked together at Flipkart (2015-2019). Vikram has co-invested with Rajesh in 3 startups and they meet regularly.</p>
+      </div>
+
+      <div class="form-group">
+        <label>Intent</label>
+        <select>
+          <option>Fundraising — Looking for seed investment</option>
+          <option>Hiring — Looking for talent</option>
+          <option>Advice — Seeking mentorship</option>
+          <option>Partnership — Exploring collaboration</option>
+          <option>Other</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Why do you want this intro?</label>
+        <textarea placeholder="Building a graph-first social network and looking for seed funding. Sequoia's expertise in social/network products makes them an ideal partner..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Personal note to bridge (optional)</label>
+        <textarea placeholder="Hey Vikram! Would love an intro to Rajesh if you think it'd be a good fit. Happy to share our deck beforehand." style="min-height:60px;"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeIntroModal()">Cancel</button>
+      <button class="btn-primary" onclick="sendIntroRequest()"><i class="fas fa-paper-plane" style="margin-right:6px;"></i> Send Request</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ BRIDGE REVIEW MODAL ============ -->
+<div class="modal-overlay" id="bridgeModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Intro Request — Bridge Review</h2>
+      <button class="modal-close" onclick="closeBridgeModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="bridge-card">
+        <div class="bridge-header">
+          <span class="label">Incoming Request</span>
+          <span class="time">2 min ago</span>
+        </div>
+        <div class="modal-path-preview" style="margin-bottom:0;">
+          <div class="mp-node">
+            <div class="mp-avatar av-6">AS</div>
+            <div class="mp-name">Ananya Sharma</div>
+            <div class="mp-role">Founder, PaySync</div>
+          </div>
+          <div class="mp-arrow"><i class="fas fa-arrow-right"></i></div>
+          <div class="mp-node">
+            <div class="mp-avatar av-1">G</div>
+            <div class="mp-name">You</div>
+            <div class="mp-role" style="color:var(--accent);">Bridge</div>
+          </div>
+          <div class="mp-arrow"><i class="fas fa-arrow-right"></i></div>
+          <div class="mp-node">
+            <div class="mp-avatar av-4">RG</div>
+            <div class="mp-name">Rajesh Gupta</div>
+            <div class="mp-role">Sequoia India</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-bottom:20px;">
+        <div style="font-size:13px; font-weight:600; color:var(--text-secondary); margin-bottom:8px;">Intent</div>
+        <div style="padding:10px 14px; background:var(--accent-dim); border-radius:8px; font-size:14px; color:var(--accent);">
+          Fundraising — Raising Series A for fintech payments infrastructure
+        </div>
+      </div>
+
+      <div style="margin-bottom:20px;">
+        <div style="font-size:13px; font-weight:600; color:var(--text-secondary); margin-bottom:8px;">Their Note to You</div>
+        <div style="padding:14px; background:rgba(255,255,255,0.03); border-radius:10px; font-size:14px; color:var(--text-secondary); line-height:1.6;">
+          "Hey Garvit! We've been growing PaySync rapidly — 3x revenue in 6 months. Rajesh's expertise in fintech infrastructure would be invaluable. Would really appreciate the intro if you think it's a fit."
+        </div>
+      </div>
+
+      <div class="context-briefing">
+        <h4><i class="fas fa-magic"></i> Auto-Generated Context Briefing</h4>
+        <p>Ananya and you both attended IIT Bombay (she was Class of '16). You've interacted 12 times on the platform. Rajesh is actively investing in seed-stage fintech. Ananya's PaySync has processed $2M in GMV and was part of YC W24.</p>
+      </div>
+
+      <div class="form-group">
+        <label>Edit context before sharing (optional)</label>
+        <textarea style="min-height:60px;">Ananya is a sharp founder I know from IIT-B. Her fintech payments product is gaining strong traction. I think this could be a great fit for Sequoia's fintech thesis.</textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeBridgeModal()">Decline</button>
+      <button class="btn-primary" onclick="approveIntro()" style="background:var(--warmth-high);"><i class="fas fa-check" style="margin-right:6px;"></i> Approve & Connect</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <i class="fas fa-check-circle"></i>
+  <span id="toastText">Intro request sent successfully!</span>
+</div>
+
+<script>
+  // ===== Navigation =====
+  function showPage(page) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + page).classList.add('active');
+    document.querySelectorAll('.nav-links li').forEach(l => l.classList.remove('active'));
+    document.querySelector(`.nav-links li[data-page="${page}"]`).classList.add('active');
+    document.getElementById('notifPanel').classList.remove('open');
+    window.scrollTo(0, 0);
+    if (page === 'network') initNetwork();
+  }
+
+  function toggleNotifications() {
+    document.getElementById('notifPanel').classList.toggle('open');
+  }
+
+  // Close notif panel on outside click
+  document.addEventListener('click', function(e) {
+    const panel = document.getElementById('notifPanel');
+    if (panel.classList.contains('open') && !panel.contains(e.target) && !e.target.closest('.nav-notif')) {
+      panel.classList.remove('open');
+    }
+  });
+
+  // Navbar scroll effect
+  window.addEventListener('scroll', () => {
+    document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 10);
+  });
+
+  // Filter chips
+  document.querySelectorAll('.filter-chip').forEach(chip => {
+    chip.addEventListener('click', function() {
+      document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+      this.classList.add('active');
+    });
+  });
+
+  // Cluster items
+  document.querySelectorAll('.cluster-item').forEach(item => {
+    item.addEventListener('click', function() {
+      document.querySelectorAll('.cluster-item').forEach(c => c.classList.remove('active'));
+      this.classList.add('active');
+    });
+  });
+
+  // ===== Intro Modal =====
+  function openIntroModal(name, role, initials, avClass, bridgeName, bridgeInitials, context) {
+    document.getElementById('modalTargetName').textContent = name;
+    document.getElementById('modalTargetRole').textContent = role;
+    document.getElementById('modalTargetAvatar').textContent = initials;
+    document.getElementById('modalBridgeName').textContent = bridgeName;
+    document.getElementById('modalBridgeAvatar').textContent = bridgeInitials;
+    document.getElementById('modalContext').textContent = `You and ${bridgeName} share: ${context}. This path has a high warmth score, making it ideal for a warm introduction.`;
+    document.getElementById('introModal').classList.add('active');
+  }
+  function closeIntroModal() {
+    document.getElementById('introModal').classList.remove('active');
+  }
+  function sendIntroRequest() {
+    closeIntroModal();
+    showToast('Intro request sent successfully! The bridge will review shortly.');
+  }
+
+  // ===== Bridge Review Modal =====
+  function openBridgeReview() {
+    document.getElementById('notifPanel').classList.remove('open');
+    document.getElementById('bridgeModal').classList.add('active');
+  }
+  function closeBridgeModal() {
+    document.getElementById('bridgeModal').classList.remove('active');
+  }
+  function approveIntro() {
+    closeBridgeModal();
+    showToast('Introduction approved! Context briefing sent to both parties.');
+  }
+
+  // ===== Toast =====
+  function showToast(text) {
+    const toast = document.getElementById('toast');
+    document.getElementById('toastText').textContent = text;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 3500);
+  }
+
+  // ===== Network Map Canvas =====
+  let networkScale = 1;
+  let networkNodes = [];
+  let networkEdges = [];
+  let animFrame;
+
+  function initNetwork() {
+    const canvas = document.getElementById('networkCanvas');
+    const container = canvas.parentElement;
+    canvas.width = container.clientWidth;
+    canvas.height = container.clientHeight;
+
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+
+    const clusters = [
+      { name: 'IIT Bombay', color: '#E94560', cx: cx - 200, cy: cy - 120, count: 18 },
+      { name: 'Flipkart', color: '#4a9eff', cx: cx + 180, cy: cy - 80, count: 14 },
+      { name: 'VC Network', color: '#a855f7', cx: cx + 60, cy: cy + 160, count: 10 },
+      { name: 'YC W24', color: '#00d4aa', cx: cx - 260, cy: cy + 100, count: 8 },
+      { name: 'Fintech', color: '#f0c040', cx: cx + 240, cy: cy + 120, count: 9 },
+      { name: 'Bangalore', color: '#ff7eb3', cx: cx - 80, cy: cy - 200, count: 12 },
+    ];
+
+    networkNodes = [];
+    networkEdges = [];
+
+    // You node at center
+    networkNodes.push({ x: cx, y: cy, r: 12, color: '#E94560', label: 'You', isCenter: true, vx: 0, vy: 0 });
+
+    clusters.forEach((cluster, ci) => {
+      for (let i = 0; i < cluster.count; i++) {
+        const angle = (Math.PI * 2 * i) / cluster.count + Math.random() * 0.5;
+        const dist = 40 + Math.random() * 80;
+        const node = {
+          x: cluster.cx + Math.cos(angle) * dist,
+          y: cluster.cy + Math.sin(angle) * dist,
+          r: 3 + Math.random() * 4,
+          color: cluster.color,
+          label: '',
+          cluster: ci,
+          vx: (Math.random() - 0.5) * 0.3,
+          vy: (Math.random() - 0.5) * 0.3,
+        };
+        const idx = networkNodes.length;
+        networkNodes.push(node);
+
+        // Intra-cluster edges
+        if (i > 0 && Math.random() > 0.4) {
+          networkEdges.push({ from: idx, to: idx - 1, color: cluster.color });
+        }
+        if (i > 2 && Math.random() > 0.6) {
+          networkEdges.push({ from: idx, to: idx - Math.floor(Math.random() * 3) - 1, color: cluster.color });
+        }
+      }
+
+      // Bridge edge from center to first node of each cluster
+      const firstOfCluster = networkNodes.findIndex((n, i) => i > 0 && n.cluster === ci);
+      if (firstOfCluster > 0) {
+        networkEdges.push({ from: 0, to: firstOfCluster, color: '#E94560' });
+      }
+    });
+
+    // Cross-cluster bridges
+    networkEdges.push({ from: 5, to: 20, color: '#a855f7' });
+    networkEdges.push({ from: 12, to: 35, color: '#f0c040' });
+    networkEdges.push({ from: 25, to: 45, color: '#00d4aa' });
+
+    drawNetwork(canvas);
+  }
+
+  function drawNetwork(canvas) {
+    const ctx = canvas.getContext('2d');
+
+    function frame() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.save();
+
+      // Gentle node movement
+      networkNodes.forEach((n, i) => {
+        if (i === 0) return;
+        n.x += n.vx;
+        n.y += n.vy;
+        if (Math.random() > 0.98) { n.vx = (Math.random() - 0.5) * 0.3; n.vy = (Math.random() - 0.5) * 0.3; }
+      });
+
+      // Edges
+      networkEdges.forEach(e => {
+        if (e.from >= networkNodes.length || e.to >= networkNodes.length) return;
+        const a = networkNodes[e.from];
+        const b = networkNodes[e.to];
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.strokeStyle = e.color + '30';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      });
+
+      // Nodes
+      networkNodes.forEach((n, i) => {
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+        if (n.isCenter) {
+          ctx.fillStyle = n.color;
+          ctx.shadowColor = n.color;
+          ctx.shadowBlur = 20;
+        } else {
+          ctx.fillStyle = n.color + 'cc';
+          ctx.shadowColor = 'transparent';
+          ctx.shadowBlur = 0;
+        }
+        ctx.fill();
+
+        if (n.isCenter) {
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = '#fff';
+          ctx.font = 'bold 10px Inter';
+          ctx.textAlign = 'center';
+          ctx.fillText('You', n.x, n.y + 24);
+        }
+      });
+
+      // Cluster labels
+      const clusters = [
+        { name: 'IIT Bombay', color: '#E94560', cx: canvas.width/2 - 200, cy: canvas.height/2 - 120 },
+        { name: 'Flipkart Alumni', color: '#4a9eff', cx: canvas.width/2 + 180, cy: canvas.height/2 - 80 },
+        { name: 'VC Network', color: '#a855f7', cx: canvas.width/2 + 60, cy: canvas.height/2 + 160 },
+        { name: 'YC W24', color: '#00d4aa', cx: canvas.width/2 - 260, cy: canvas.height/2 + 100 },
+        { name: 'Fintech', color: '#f0c040', cx: canvas.width/2 + 240, cy: canvas.height/2 + 120 },
+        { name: 'Bangalore Tech', color: '#ff7eb3', cx: canvas.width/2 - 80, cy: canvas.height/2 - 200 },
+      ];
+      clusters.forEach(c => {
+        ctx.fillStyle = c.color + '80';
+        ctx.font = '600 12px Inter';
+        ctx.textAlign = 'center';
+        ctx.fillText(c.name, c.cx, c.cy - 100);
+      });
+
+      ctx.restore();
+      animFrame = requestAnimationFrame(frame);
+    }
+
+    if (animFrame) cancelAnimationFrame(animFrame);
+    frame();
+  }
+
+  function zoomNetwork(factor) {
+    networkScale *= factor;
+    // Simple zoom by adjusting node positions relative to center
+    const canvas = document.getElementById('networkCanvas');
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+    networkNodes.forEach(n => {
+      n.x = cx + (n.x - cx) * factor;
+      n.y = cy + (n.y - cy) * factor;
+    });
+  }
+
+  function resetNetwork() {
+    networkScale = 1;
+    initNetwork();
+  }
+
+  // Handle window resize for canvas
+  window.addEventListener('resize', () => {
+    if (document.getElementById('page-network').classList.contains('active')) {
+      initNetwork();
+    }
+  });
+</script>
+
+</body>
+</html>
